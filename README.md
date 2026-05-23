@@ -17,6 +17,8 @@ Code companion to **[Secure AI Agent Infrastructure for Companies](https://webne
 | [`gateway/honcho-stack/compose.yml`](gateway/honcho-stack/compose.yml) | Hardened Honcho self-hosted stack (API + Postgres/pgvector + Redis + deriver worker). Internal-only networks, bind-mounted data dirs with explicit UID ownership, strict per-service resource and capability limits. |
 
 > [!TIP]
+> <a href="https://webnestify.cloud"><img src="https://webnestify.cloud/_astro/logo-footer.DEOoY9tu_1CtmJ9.svg" alt="Webnestify" height="50"></a>
+>
 > ### Need help deploying this in your company?
 >
 > Webnestify designs, deploys, hardens, and monitors private AI agent infrastructure on your own servers — gateway/sandbox split, rootless Docker, Docker Hardened Images, scoped tokens, tested backups, off-site encrypted snapshots.
