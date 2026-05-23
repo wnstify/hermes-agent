@@ -6,7 +6,7 @@
 
 Hardening patterns for running an AI agent stack ([Hermes Agent](https://github.com/NousResearch/hermes-agent) + [Honcho](https://github.com/plastic-labs/honcho)) on company servers without exposing production.
 
-Code companion to **[Secure AI Agent Infrastructure for Companies](https://webnestify.cloud/insights/cybersecurity-hardening/secure-ai-agent-infrastructure-companies/)** — the blog post walks through the *why* behind every choice in these files. The files are *what* it looks like once applied.
+Code companion to **[Secure AI Agent Infrastructure for Companies](https://webnestify.cloud/insights/cybersecurity-hardening/hermes-agent-deployment/)** — the blog post walks through the *why* behind every choice in these files. The files are *what* it looks like once applied.
 
 ## What's in here
 
