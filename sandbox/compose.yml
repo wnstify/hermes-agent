@@ -1,0 +1,104 @@
+services:
+  hermes-sandbox-shell:
+    image: nikolaik/python-nodejs:python3.13-nodejs24
+    container_name: hermes-sandbox-shell
+    restart: unless-stopped
+    hostname: hermes-sandbox
+    working_dir: /workspace
+    command: sleep infinity
+
+    # DNS — route container queries through a self-hosted resolver (e.g. AdGuard
+    # Home or Pi-hole on your private network) for visibility and threat blocking.
+    # Quad9 (9.9.9.9) is fallback so the sandbox never loses DNS entirely.
+    dns:
+      - 10.0.0.53     # replace with your internal DNS resolver
+      - 9.9.9.9
+
+    init: true
+    ipc: private
+
+    cap_drop: [ALL]
+    cap_add:
+      - DAC_OVERRIDE
+      - CHOWN
+      - FOWNER
+      - SETGID            # for apt's privilege drop (setgroups syscall)
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+
+    pids_limit: 256
+    mem_limit: 3g
+    mem_reservation: 512m
+    cpus: 1.8
+
+    ulimits:
+      nofile: { soft: 4096, hard: 65536 }
+      nproc:  { soft: 256,  hard: 256  }
+      core:   { soft: 0,    hard: 0    }
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=512m
+      - /run:rw,nosuid,nodev,noexec,size=64m
+
+    volumes:
+      - ./workspace:/workspace:rw
+
+    devices: []
+
+  hermes-sandbox-chrome:
+    image: chromedp/headless-shell:148.0.7778.97
+    container_name: hermes-sandbox-chrome
+    restart: unless-stopped
+    hostname: hermes-sandbox-chrome
+
+    # Bind ONLY to a private interface (NOT 0.0.0.0) — CDP has zero
+    # authentication; network layer is the only gate. In production: bind to
+    # your tailnet/WireGuard IP, and restrict further via Tailscale ACL or
+    # firewall rule so only the gateway host can reach this port.
+    ports:
+      - "127.0.0.1:9222:9222"     # replace 127.0.0.1 with your private interface IP
+
+    # DNS — same self-hosted resolver as the shell container (observability + filtering)
+    dns:
+      - 10.0.0.53     # replace with your internal DNS resolver
+      - 9.9.9.9
+
+    # Same hardening pattern as hermes-sandbox-shell
+    init: true
+    ipc: private
+    cap_drop: [ALL]
+    cap_add:
+      - SETGID            # Chrome's internal user separation
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+
+    # Resources — leaves ~1 GB headroom on 4 GB box (shell ceiling 3 GB)
+    mem_limit: 1g
+    mem_reservation: 256m
+    cpus: 1.0
+    pids_limit: 512        # Chrome forks more than the shell
+    shm_size: "256m"       # for Chrome's raster/GPU threads
+
+    ulimits:
+      nofile: { soft: 4096, hard: 65536 }
+      nproc:  { soft: 512,  hard: 512  }
+      core:   { soft: 0,    hard: 0    }
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m
+
+    # No bind mounts — chrome has no access to /workspace; full isolation from shell container

@@ -1,0 +1,152 @@
+# Honcho self-hosted — HARDENED + bind mounts.
+#
+# Data lives on disk at ./data/pgdata and ./data/redis-data
+# (NOT in Docker-managed named volumes).
+#
+# First-start setup (one-time):
+#   mkdir -p ./data/pgdata ./data/redis-data
+#   docker run --rm -v "$(pwd)/data/pgdata:/d" alpine chown -R 70:70 /d && chmod 700 ./data/pgdata
+#   docker run --rm -v "$(pwd)/data/redis-data:/d" alpine chown -R 65532:65532 /d && chmod 700 ./data/redis-data
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["sh", "docker/entrypoint.sh"]
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/app/.venv/bin/python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    environment:
+      - DB_CONNECTION_URI=postgresql+psycopg://honcho:${POSTGRES_PASSWORD}@database:5432/honcho
+      - CACHE_URL=redis://redis:6379/0?suppress=true
+      - CACHE_ENABLED=true
+    env_file:
+      - path: .env
+        required: true
+    restart: unless-stopped
+    networks: [internal, external]
+    init: true
+    ipc: private
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 768m
+    mem_reservation: 256m
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=128m
+    ulimits:
+      nofile: { soft: 4096, hard: 65536 }
+      core: { soft: 0, hard: 0 }
+
+  deriver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["/app/.venv/bin/python", "-m", "src.deriver"]
+    depends_on:
+      api:
+        condition: service_healthy
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DB_CONNECTION_URI=postgresql+psycopg://honcho:${POSTGRES_PASSWORD}@database:5432/honcho
+      - CACHE_URL=redis://redis:6379/0?suppress=true
+      - CACHE_ENABLED=true
+    env_file:
+      - path: .env
+        required: true
+    restart: unless-stopped
+    networks: [internal, external]
+    init: true
+    ipc: private
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 512m
+    mem_reservation: 256m
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=128m
+    ulimits:
+      nofile: { soft: 4096, hard: 65536 }
+      core: { soft: 0, hard: 0 }
+
+  database:
+    image: pgvector/pgvector:0.8.2-pg18
+    restart: unless-stopped
+    command: ["-c", "max_connections=200"]
+    environment:
+      - POSTGRES_DB=honcho
+      - POSTGRES_USER=honcho
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./data/pgdata:/var/lib/postgresql/
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "honcho", "-d", "honcho"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+    ipc: private
+    cap_drop: [ALL]
+    cap_add:
+      - CHOWN              # postgres entrypoint chowns PGDATA on every startup
+      - DAC_OVERRIDE       # for cross-UID file ops within PGDATA
+      - FOWNER             # for chmod within PGDATA
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    mem_reservation: 512m
+    ulimits:
+      nofile: { soft: 4096, hard: 65536 }
+      core: { soft: 0, hard: 0 }
+
+  redis:
+    image: redis:8.6.1-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--protected-mode", "no"]
+    volumes:
+      - ./data/redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks: [internal]
+    ipc: private
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 256m
+    mem_reservation: 64m
+    ulimits:
+      nofile: { soft: 4096, hard: 65536 }
+      core: { soft: 0, hard: 0 }
+
+networks:
+  internal:
+    internal: true
+  external:

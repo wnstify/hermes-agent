@@ -1,0 +1,22 @@
+# Editor + OS junk
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Real env files — never commit
+.env
+.env.*
+!.env.example
+
+# Local data dirs if someone runs the stack from this checkout
+data/
+volumes/
+
+# Claude/AI agent state — never commit
+.claude/
+.codex/
+.Codex/
+.cursor/
